@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>股票详情 · 实战参谋</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<style>
+  /* 顶栏股票信息 · 田字格 */
+  .stock-info{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:24px 26px}
+  .stock-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--line-soft)}
+  .stock-head .left{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+  .stock-head .eyebrow{font-size:11px;letter-spacing:0.18em;color:var(--text-mute);text-transform:uppercase;display:flex;align-items:center;gap:6px}
+  .stock-head .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+  .stock-head .price{font-family:'DM Serif Display',serif;font-size:36px;font-weight:400;letter-spacing:-0.01em;line-height:1}
+  .stock-head .meta{font-size:12px;color:var(--text-mute);font-family:'JetBrains Mono',monospace}
+  /* 2×2 卡 + 强化分位条 */
+  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .info-cell{background:var(--bg-2);padding:18px 22px;display:flex;flex-direction:column;gap:4px;min-width:0}
+  .info-cell .k{font-size:11px;letter-spacing:0.08em;color:var(--text-mute);text-transform:uppercase;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .info-cell .v{font-family:'DM Serif Display',serif;font-size:24px;font-weight:400;letter-spacing:-0.01em;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .info-cell .v.up{color:var(--up)}
+  .info-cell .v.down{color:var(--down)}
+  .info-cell .d{font-size:10.5px;color:var(--text-mute);font-family:'JetBrains Mono',monospace;margin-top:2px;line-height:1.4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .info-cell .d .up{color:var(--up)}
+  .info-cell .d .down{color:var(--down)}
+  .info-cell .d .arrow{display:inline-block;margin:0 2px}
+  /* 区间极值 · 曲线 + 标点 */
+  .extreme-cell{padding:18px 22px}
+  .extreme-cell .k{font-size:11px;letter-spacing:0.08em;color:var(--text-mute);text-transform:uppercase;font-weight:500;margin-bottom:6px}
+  .extreme-cell .chart-wrap{position:relative;height:130px;margin-top:6px}
+  .extreme-cell svg.extreme-chart{width:100%;height:100%;display:block;overflow:visible}
+  .extreme-cell .lbl{position:absolute;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:0.04em;white-space:nowrap}
+  .extreme-cell .lbl-h{top:0;color:var(--up)}
+  .extreme-cell .lbl-l{bottom:0;color:var(--down)}
+  .extreme-cell .lbl-cur{font-size:11px;font-weight:600}
+  .extreme-cell .brackets{position:absolute;right:0;top:0;bottom:0;width:54px;pointer-events:none}
+  .extreme-cell .brackets svg{width:100%;height:100%;display:block;overflow:visible}
+  /* 回撤/反弹卡(走势+回撤反弹线段) */
+  .draw-cell{padding:18px 22px}
+  .draw-cell .k{font-size:11px;letter-spacing:0.08em;color:var(--text-mute);text-transform:uppercase;font-weight:500;margin-bottom:6px}
+  .draw-cell .chart-wrap{position:relative;height:140px;margin-top:6px}
+  .draw-cell svg.draw-chart{width:100%;height:100%;display:block;overflow:visible}
+  .draw-cell .lbl{position:absolute;font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:0.04em;white-space:nowrap}
+  .draw-cell .lbl-h{top:0;left:0;color:var(--text)}
+  .draw-cell .lbl-l{bottom:0;left:0;color:var(--text)}
+  .draw-cell .lbl-c{top:50%;left:0;transform:translateY(-50%);font-size:11px;font-weight:600;color:var(--text)}
+  /* 价格分位条(简洁版) */
+  .quantile{margin-top:18px;padding-top:18px;border-top:1px solid var(--line-soft)}
+  .quantile-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+  .quantile-head .title{font-size:11px;letter-spacing:0.1em;color:var(--text-mute);text-transform:uppercase;font-weight:500}
+  .quantile-head .current{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:600;letter-spacing:-0.01em}
+  .quantile-bar{position:relative;height:8px;background:linear-gradient(90deg,rgba(0,232,138,0.25) 0%,rgba(120,140,160,0.25) 50%,rgba(255,69,101,0.25) 100%);border-radius:4px;margin-bottom:6px}
+  .quantile-bar .pin{position:absolute;top:-3px;width:3px;height:14px;background:var(--text);border-radius:2px;transform:translateX(-1.5px);box-shadow:0 0 6px rgba(255,255,255,0.4)}
+  .quantile-meta{display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text-mute)}
+
+  /* 价格分位条(过去 250 日) */
+  .quantile{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line-soft)}
+  .quantile-bar{position:relative;height:6px;background:linear-gradient(90deg,var(--down),var(--neutral),var(--up));border-radius:3px;margin:6px 0 4px}
+  .quantile-bar::after{content:'';position:absolute;top:-3px;width:2px;height:12px;background:var(--text);border-radius:1px;box-shadow:0 0 6px rgba(255,255,255,0.4)}
+  .quantile-meta{display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--text-mute)}
+
+  /* 信号汇总卡 */
+  .signal-card{background:var(--surface);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+  .signal-top{padding:18px 22px;display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center;border-bottom:1px solid var(--line-soft)}
+  .verdict-badge{width:90px;height:90px;border-radius:22px;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'DM Serif Display',serif;line-height:1.05;text-align:center;padding:0 4px;flex-shrink:0}
+  .verdict-badge .main{font-size:17px;font-weight:500;letter-spacing:0.04em}
+  .verdict-badge .sub{font-size:10px;opacity:0.85;margin-top:2px;font-family:'Outfit',sans-serif}
+  .verdict-badge.strong-buy{background:linear-gradient(135deg,#9a1a2a,#ff4565)}
+  .verdict-badge.buy{background:linear-gradient(135deg,#c4304a,#ff7080)}
+  .verdict-badge.sell{background:linear-gradient(135deg,#0a6e3e,#00c878)}
+  .verdict-badge.strong-sell{background:linear-gradient(135deg,#0a4a2a,#00b36b)}
+  .verdict-badge.neutral{background:linear-gradient(135deg,#475569,#94a3b8)}
+  .verdict-body h3{font-family:'Outfit',sans-serif;font-size:18px;font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;letter-spacing:-0.005em}
+  .verdict-body p{color:var(--text-soft);font-size:12.5px;line-height:1.55}
+  .verdict-meta{font-size:10.5px;color:var(--text-mute);margin-top:6px;font-family:'JetBrains Mono',monospace}
+  .verdict-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+
+  /* 仓位条 */
+  .pos-strip{padding:14px 22px;display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;border-bottom:1px solid var(--line-soft);background:linear-gradient(180deg,transparent,rgba(0,212,255,0.02))}
+  .pos-strip .k{font-size:11px;letter-spacing:0.1em;color:var(--text-mute);text-transform:uppercase;white-space:nowrap}
+  .pos-bar{position:relative;height:14px;background:var(--bg-2);border-radius:7px;overflow:hidden;border:1px solid var(--line)}
+  .pos-bar .fill{position:absolute;top:0;bottom:0;left:0;background:linear-gradient(90deg,var(--accent),var(--up));border-radius:7px;transition:width .8s cubic-bezier(.4,0,.2,1);box-shadow:0 0 12px rgba(255,69,101,0.4)}
+  .pos-bar .marker{position:absolute;top:-2px;width:2px;height:18px;background:var(--text-mute);opacity:0.3}
+  .pos-strip .v{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;letter-spacing:-0.01em;min-width:60px;text-align:right}
+
+  /* 风险提示卡 */
+  .risk-card{margin:0 22px 16px;padding:14px 18px;background:rgba(255,69,101,0.04);border:1px solid rgba(255,69,101,0.2);border-left:3px solid var(--up);border-radius:10px;font-size:12.5px;line-height:1.6;color:var(--text-soft)}
+  .risk-card .label{font-size:10.5px;letter-spacing:0.1em;color:var(--up);text-transform:uppercase;font-weight:600;margin-bottom:6px;display:block}
+
+  /* 胜率小卡 */
+  .winrate-row{display:flex;gap:12px;padding:0 22px 14px;font-size:11.5px;color:var(--text-mute);font-family:'JetBrains Mono',monospace}
+  /* 量能状态条(顶部) */
+  .vol-strip{padding:12px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:12px;border-top:1px solid var(--line-soft);background:var(--bg-2)}
+  .vol-strip .item{display:flex;align-items:baseline;gap:8px}
+  .vol-strip .k{color:var(--text-mute);font-size:10.5px;letter-spacing:0.06em;text-transform:uppercase;font-weight:500}
+  .vol-strip .v{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:600;letter-spacing:-0.01em}
+  .vol-strip .v.up{color:var(--up)}
+  .vol-strip .v.down{color:var(--down)}
+  .vol-strip .v.warn{color:var(--warn)}
+  /* 量价警告 */
+  .vp-alert{margin:0 22px 16px;padding:12px 16px;background:rgba(255,69,101,0.06);border:1px solid rgba(255,69,101,0.25);border-left:3px solid var(--up);border-radius:10px;font-size:12.5px;line-height:1.55;color:var(--text-soft);display:flex;align-items:center;gap:10px}
+  .vp-alert .icon{font-size:16px}
+  .vp-alert.good{background:rgba(0,232,138,0.06);border-color:rgba(0,232,138,0.3);border-left-color:var(--down)}
+  .vp-alert.good .icon{color:var(--down)}
+  .vp-alert.warn{background:rgba(255,181,71,0.06);border-color:rgba(255,181,71,0.3);border-left-color:var(--warn)}
+  .vp-alert.warn .icon{color:var(--warn)}
+  .winrate-row .item{background:var(--bg-2);padding:8px 12px;border-radius:8px;flex:1;border:1px solid var(--line)}
+  .winrate-row .v{font-size:18px;font-weight:600;color:var(--text);display:block;font-family:'Outfit',sans-serif;letter-spacing:-0.01em;margin-top:2px}
+  .winrate-row .v.up{color:var(--up)}
+  .winrate-row .v.down{color:var(--down)}
+  .winrate-row .v.warn{color:var(--warn)}
+
+  /* 指标区(分组) */
+  .indicators-section{padding:14px 22px 18px}
+  .ig-group{margin-top:14px}
+  .ig-group:first-child{margin-top:0}
+  .ig-group .title{font-size:10.5px;letter-spacing:0.1em;color:var(--text-mute);text-transform:uppercase;margin-bottom:6px;font-weight:600;display:flex;align-items:center;gap:8px}
+  .ig-group .title::before{content:'';width:3px;height:11px;background:var(--accent);border-radius:2px}
+  .ig-group .title .count{color:var(--text-mute);font-weight:400;font-family:'JetBrains Mono',monospace;letter-spacing:0.05em;margin-left:auto}
+
+  /* 指标行(趋势组:无条形,显示 MA 当前值) */
+  .ig-row{display:grid;grid-template-columns:64px 1fr 56px 60px;align-items:center;padding:6px 0;font-size:12px;gap:10px;border-bottom:1px solid var(--line-soft)}
+  .ig-row:last-child{border-bottom:0}
+  .ig-row .name{font-family:'JetBrains Mono',monospace;color:var(--text);font-size:11.5px}
+  .ig-row .val{font-family:'JetBrains Mono',monospace;color:var(--text-soft);text-align:right;font-size:11.5px}
+  /* 趋势组:横向彩色进度条(价格在均线下方/上方距离) */
+  .trend-bar{position:relative;height:6px;background:var(--bg-2);border-radius:3px}
+  .trend-bar .center{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:var(--text-mute);opacity:0.4}
+  .trend-bar .fill{position:absolute;top:0;bottom:0;border-radius:3px;transition:all .3s}
+  .trend-bar .fill.above{left:50%;background:var(--up)}
+  .trend-bar .fill.below{right:50%;background:var(--down)}
+  /* 动量/波动组:0-100 彩条 */
+  .osc-bar{position:relative;height:8px;background:var(--bg-2);border-radius:4px;overflow:hidden}
+  .osc-bar .gradient{position:absolute;inset:0;background:linear-gradient(90deg,var(--down) 0%,var(--neutral) 50%,var(--up) 100%);opacity:0.5}
+  .osc-bar .pointer{position:absolute;top:-2px;width:3px;height:12px;background:var(--text);border-radius:2px;box-shadow:0 0 6px rgba(255,255,255,0.5);transition:left .3s}
+  .osc-bar.bipolar .gradient{background:linear-gradient(90deg,var(--down) 0%,var(--neutral) 50%,var(--up) 100%)}
+  /* 双向条(ROC/CCI/WR) */
+  .osc-bar.bipolar-zero{position:relative;height:8px;background:var(--bg-2);border-radius:4px;overflow:hidden}
+  .osc-bar.bipolar-zero::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--text-mute);opacity:0.4}
+  .osc-bar.bipolar-zero .fill{position:absolute;top:0;bottom:0;transition:all .3s}
+  .osc-bar.bipolar-zero .fill.pos{left:50%;background:var(--up)}
+  .osc-bar.bipolar-zero .fill.neg{right:50%;background:var(--down)}
+
+  /* type pill */
+  .type-pill{display:inline-block;padding:2px 7px;border-radius:4px;font-size:10px;font-weight:600;letter-spacing:0.05em;margin-left:6px;vertical-align:middle}
+  .type-pill.type-stock{background:rgba(154,165,184,0.15);color:#9aa5b8}
+  .type-pill.type-etf{background:rgba(0,212,255,0.15);color:#00d4ff}
+  .type-pill.type-lof{background:rgba(255,181,71,0.15);color:#ffb547}
+  .type-pill.type-index{background:rgba(168,85,247,0.18);color:#c084fc}
+
+  /* pivot 表格 */
+  .pivot-table{width:100%;border-collapse:collapse;font-size:12.5px}
+  .pivot-table th,.pivot-table td{padding:7px 10px;border-bottom:1px solid var(--line-soft)}
+  .pivot-table th{font-weight:500;color:var(--text-mute);font-size:10.5px;letter-spacing:0.06em;text-transform:uppercase}
+  .pivot-table td.num{font-family:'JetBrains Mono',monospace;text-align:right}
+  .pivot-table tr:last-child td{border-bottom:0}
+  .pivot-table tr.zen{border-top:2px solid var(--text);background:var(--bg-2)}
+  .pivot-table .pos-arrow{color:var(--up);font-size:11px;margin-left:4px;font-weight:500}
+  .pivot-table .neg-arrow{color:var(--down);font-size:11px;margin-left:4px;font-weight:500}
+
+  /* 基本面卡 */
+  .fundamental{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+  .f-cell{background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+  .f-cell .k{font-size:10.5px;letter-spacing:0.08em;color:var(--text-mute);text-transform:uppercase;margin-bottom:4px}
+  .f-cell .v{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;letter-spacing:-0.01em}
+  .f-cell .d{font-size:10.5px;color:var(--text-mute);margin-top:2px;font-family:'JetBrains Mono',monospace}
+
+  /* K 线全屏查看 */
+  #mainChartCard:fullscreen{background:var(--bg-2);display:flex;align-items:center;justify-content:center;padding:32px}
+  #mainChartCard:fullscreen .chart{height:calc(100dvh - 80px);width:100%}
+  #mainChartCard:fullscreen::after{content:'⛶ 按 ESC 退出全屏';position:absolute;top:16px;right:24px;font-size:12px;color:var(--text-mute);font-family:'JetBrains Mono',monospace}
+  .fs-btn{position:absolute;top:12px;right:12px;padding:6px 12px;background:rgba(20,23,30,0.7);border:1px solid var(--line-2);border-radius:8px;font-size:12px;color:var(--text-soft);cursor:pointer;z-index:10;backdrop-filter:blur(8px);transition:all .2s}
+  .fs-btn:hover{color:var(--text);border-color:var(--accent)}
+
+  @media (max-width:900px){
+    .stock-info{grid-template-columns:1fr 1fr;gap:18px}
+    .stock-info .stock-head{flex-direction:column;align-items:flex-start;gap:8px}
+    .info-grid{grid-template-columns:1fr}
+    .quantile-head{flex-direction:column;align-items:flex-start;gap:4px}
+    .signal-top{grid-template-columns:1fr}
+    .verdict-badge{width:84px;height:84px;font-size:15px}
+    .ig-row{grid-template-columns:60px 1fr 50px 56px;gap:6px}
+    .fundamental{grid-template-columns:repeat(2,1fr)}
+    .pos-strip{grid-template-columns:1fr;gap:8px}
+    .winrate-row{flex-direction:column}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav class="topnav">
+    <div class="brand">
+      <div class="logo">K</div>
+      <span>K-Line · 实战参谋</span>
+    </div>
+    <a class="back" href="index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+      返回自选股
+    </a>
+  </nav>
+
+  <div id="root">
+    <div class="loading">加载中…</div>
+  </div>
+
+  <footer class="foot">
+    <span>SOURCE · web.ifzq.gtimg.cn</span>
+    <span id="footTime">GEN · Mavis</span>
+  </footer>
+</div>
+
+<script src="app.js"></script>
+<script>
+const code = getCodeFromURL();
+if (!code) {
+  document.getElementById('root').innerHTML = `<div class="empty">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+    缺少股票代码 · <a href="index.html" style="color:var(--accent)">返回添加</a>
+  </div>`;
+} else {
+  initStock(code);
+}
+
+async function initStock(code) {
+  let data, basic;
+  try {
+    [data, basic] = await Promise.all([
+      fetchKLine(code, 250),
+      fetchBasic(code).catch(() => null),
+    ]);
+  } catch (e) {
+    document.getElementById('root').innerHTML = `<div class="empty" style="color:var(--up)">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="9"/><path d="M15 9l-6 6M9 9l6 6"/></svg>
+      抓取失败: ${e.message}<br><br>
+      <a class="btn" href="index.html">返回自选股</a>
+    </div>`;
+    return;
+  }
+
+  const closes = data.map(d => d.close);
+  const opens  = data.map(d => d.open);
+  const highs  = data.map(d => d.high);
+  const lows   = data.map(d => d.low);
+  const vols   = data.map(d => d.volume);
+  const prev = data[data.length - 2] || data[data.length - 1];
+  const pivots = calcPivots(prev.high, prev.low, prev.close);
+  const sum = summarize(closes, highs, lows, opens, vols, pivots);
+
+  const currentPrice = closes[closes.length - 1];
+  const prevClose = data[data.length - 2] ? data[data.length - 2].close : currentPrice;
+  const change = currentPrice - prevClose;
+  const changePct = (change / prevClose) * 100;
+
+  renderPage(data, sum, pivots, currentPrice, change, changePct, basic);
+  drawChart(data, sum, pivots);
+  bindNameEditor(code);
+  bindFullscreen();
+}
+
+function bindFullscreen() {
+  const card = document.getElementById('mainChartCard');
+  const btn = document.getElementById('btnFs');
+  if (!card || !btn) return;
+  function toggle() {
+    if (document.fullscreenElement === card) {
+      document.exitFullscreen();
+    } else {
+      if (card.requestFullscreen) card.requestFullscreen();
+      else if (card.webkitRequestFullscreen) card.webkitRequestFullscreen();
+    }
+  }
+  btn.addEventListener('click', toggle);
+  // 全屏状态变化时重调图表
+  document.addEventListener('fullscreenchange', () => {
+    if (window.__mainChart) {
+      setTimeout(() => window.__mainChart.resize(), 200);
+    }
+  });
+}
+
+function bindNameEditor(code) {
+  const el = document.getElementById('editableName');
+  if (!el) return;
+  el.addEventListener('click', () => {
+    if (el.querySelector('input')) return;
+    const cur = el.textContent.trim();
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = cur;
+    input.maxLength = 12;
+    input.style.cssText = 'font:inherit;color:inherit;background:rgba(255,255,255,0.08);border:1px solid var(--accent);border-radius:6px;padding:2px 8px;outline:none;width:auto;min-width:120px';
+    el.innerHTML = '';
+    el.appendChild(input);
+    input.focus();
+    input.select();
+    const finish = (commit) => {
+      const v = input.value.trim();
+      if (commit && v && v !== cur) {
+        if (updateName(code, v)) {
+          el.textContent = v;
+          el.style.color = 'var(--up)';
+          setTimeout(() => el.style.color = '', 1200);
+        } else {
+          el.textContent = cur;
+        }
+      } else {
+        el.textContent = cur;
+      }
+    };
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+      else if (e.key === 'Escape') { finish(false); }
+    });
+    input.addEventListener('blur', () => finish(true));
+  });
+}
+
+function renderPage(data, sum, pivots, currentPrice, change, changePct, basic) {
+  const up = change >= 0;
+  const cls = up ? 'up' : 'down';
+  const sign = up ? '+' : '';
+  const last = data[data.length - 1];
+  const first = data[0];
+  const periodHigh = Math.max(...data.map(d => d.high));
+  const periodLow = Math.min(...data.map(d => d.low));
+  const periodChange = currentPrice - first.close;
+  const periodChangePct = (periodChange / first.close) * 100;
+  // 近 20 日变化
+  const idx20 = Math.max(0, data.length - 1 - 20);
+  const recent20Start = data[idx20].close;
+  const recent20Change = currentPrice - recent20Start;
+  const recent20ChangePct = (recent20Change / recent20Start) * 100;
+  // 回撤 / 反弹
+  const drawdownPct = ((periodHigh - currentPrice) / periodHigh) * 100;
+  const rebouncePct = ((currentPrice - periodLow) / periodLow) * 100;
+  // 价格分位
+  const quantile = ((currentPrice - periodLow) / (periodHigh - periodLow)) * 100;
+  const code = getCodeFromURL();
+  const nameEl = findName(code);
+  const typeName = getTypeByCode(code);
+
+  const verdictCls = ({
+    '强力买入':'strong-buy','买入':'buy','中性':'neutral','卖出':'sell','强力卖出':'strong-sell',
+    '左侧试探':'buy','高空防守':'sell'
+  })[sum.overall] || 'neutral';
+  const trendBadge = {
+    '强多头':'强多', '多头':'多头', '震荡':'震荡', '空头':'空头', '强空头':'强空'
+  }[sum.trend] || '震荡';
+
+  // 风险提示(根据 trend / 枢轴 / 破位 动态生成)
+  let riskHtml = '';
+  const ma5 = sum.mas.find(m => m.name === 'MA5');
+  if (sum.pivotBreakdown) {
+    riskHtml = `当前价 <b>${currentPrice.toFixed(2)}</b> 已跌破枢轴点 <b>${sum.pivotBreakdown.level}(${sum.pivotBreakdown.from.toFixed(2)})</b>支撑,看跌目标 <b>${sum.pivotBreakdown.to}(${pivots.classic[sum.pivotBreakdown.to].toFixed(2)})</b>。建议将止损点设于 <b>${sum.pivotBreakdown.from.toFixed(2)}</b> 附近,若放量跌破则果断离场。`;
+  } else if (sum.pivotBreakout) {
+    riskHtml = `当前价 <b>${currentPrice.toFixed(2)}</b> 已突破枢轴点 <b>${sum.pivotBreakout.level}(${sum.pivotBreakout.from.toFixed(2)})</b>阻力,上看目标 <b>${sum.pivotBreakout.target}(${pivots.classic[sum.pivotBreakout.target].toFixed(2)})</b>。建议顺势而为,但注意上方阻力位 ${pivots.classic.R2.toFixed(2)}~${pivots.classic.R3.toFixed(2)}。`;
+  } else if (sum.trendScore <= -1) {
+    riskHtml = `整体趋势为<b>${trendBadge}</b>(MA60 方向向下),价格位于 MA60 下方。除非出现极端超卖(RSI<20)或政策利好,否则不建议直接买入。激进者可"${sum.action}",止损设于枢轴点 S1(${pivots.classic.S1.toFixed(2)})。`;
+  } else if (sum.trendScore >= 1) {
+    riskHtml = `整体趋势为<b>${trendBadge}</b>(MA60 方向向上),价格站稳 MA60。可关注支撑位 <b>${pivots.classic.S1.toFixed(2)}</b>,若放量跌破则需要警惕趋势反转。`;
+  } else {
+    riskHtml = `当前处于震荡格局,价格在枢轴点 <b>${pivots.classic['轴心点'].toFixed(2)}</b> 与 S1 <b>${pivots.classic.S1.toFixed(2)}</b> 之间。等待方向明确后再加仓。`;
+  }
+  if (sum.backtest.buySamples >= 20 && sum.backtest.buyWinRate < 0.45) {
+    riskHtml += ` <span style="color:var(--warn)">⚠ 历史信号回测胜率仅 ${(sum.backtest.buyWinRate*100).toFixed(0)}%,信号可靠性偏低。</span>`;
+  }
+
+  // 仓位档位
+  const posLabel = sum.position >= 80 ? '满仓' : sum.position >= 50 ? '半仓' : sum.position >= 25 ? '轻仓' : sum.position > 0 ? '极轻仓' : '空仓';
+
+  // 胜率回测
+  const bt = sum.backtest;
+  const wrClass = bt.buyWinRate >= 0.55 ? 'up' : bt.buyWinRate < 0.45 ? 'warn' : '';
+
+  document.getElementById('root').innerHTML = `
+    <header class="hero">
+      <div class="eyebrow"><span class="dot"></span>STOCK · 实战参谋</div>
+      <h1><span class="editable-name" id="editableName" data-code="${code}" title="点击修改名称">${nameEl}</span> · <em id="editableCode">${code.toUpperCase()}</em></h1>
+      <p class="sub">数据区间 <code>${first.date} → ${last.date}</code> · 共 <code>${data.length}</code> 个交易日 · 加权信号 + 趋势过滤 + 枢轴点风控 + 历史回测</p>
+    </header>
+
+    <!-- ROW 1: 股票信息 + 田字格 -->
+    <div class="stock-info">
+      <div class="stock-head">
+        <div class="left">
+          <span class="eyebrow"><span class="dot"></span>${nameEl}</span>
+          <span class="price">${currentPrice.toFixed(2)}</span>
+        </div>
+        <span class="meta">${last.date} · ${code.toUpperCase()}</span>
+      </div>
+      <div class="info-grid">
+        <div class="info-cell">
+          <div class="k">当日涨跌</div>
+          <div class="v ${cls}">${sign}${change.toFixed(2)}</div>
+          <div class="d">${sign}${changePct.toFixed(2)}%</div>
+        </div>
+        <div class="info-cell">
+          <div class="k">阶段涨跌 · 近 20 日</div>
+          <div class="v ${recent20Change>=0?'up':'down'}">${recent20Change>=0?'+':''}${recent20ChangePct.toFixed(2)}%</div>
+          <div class="d">${recent20Start.toFixed(2)} <span class="arrow ${recent20Change>=0?'up':'down'}">→</span> ${currentPrice.toFixed(2)}</div>
+        </div>
+        <div class="info-cell draw-cell" style="grid-column:1/-1">
+          <div class="k">回撤 / 反弹 · 250 日走势</div>
+          <div class="chart-wrap">
+            <svg class="draw-chart" viewBox="0 0 100 100" preserveAspectRatio="none" id="drawChart"></svg>
+            <div class="lbl lbl-h" style="left:0;top:0">高 ${periodHigh.toFixed(2)}</div>
+            <div class="lbl lbl-l" style="left:0;bottom:0">低 ${periodLow.toFixed(2)}</div>
+            <div class="lbl lbl-c" style="left:0;top:50%;transform:translateY(-50%)">现 ${currentPrice.toFixed(2)}</div>
+          </div>
+        </div>
+      </div>
+      <div class="quantile">
+        <div class="quantile-head">
+          <span class="title">价格分位 · 过去 ${data.length} 日</span>
+          <span class="current" style="color:${quantile>=70?'var(--up)':quantile<=30?'var(--down)':'var(--accent)'}">${quantile.toFixed(0)}%</span>
+        </div>
+        <div class="quantile-bar"><span class="pin" style="left:${quantile.toFixed(2)}%"></span></div>
+        <div class="quantile-meta">
+          <span>低 ${periodLow.toFixed(2)}</span>
+          <span>${currentPrice.toFixed(2)}</span>
+          <span>高 ${periodHigh.toFixed(2)}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ROW 2: 实战参谋 -->
+    <section>
+      <div class="sec-head">
+        <h2>实战参谋</h2>
+        <span class="tag">ACTION · 仓位 · 风控</span>
+      </div>
+      <div class="signal-card">
+        <div class="signal-top">
+          <div class="verdict-badge ${verdictCls}">
+            <div class="main">${sum.overall.toUpperCase()}</div>
+            <div class="sub">${trendBadge}趋势</div>
+          </div>
+          <div class="verdict-body">
+            <h3>${sum.action}${typeLabel(typeName)}</h3>
+            <p>加权分 <b>${sum.netScore > 0?'+':''}${sum.netScore}</b> · 趋势 <b>${trendBadge}</b> · 枢轴 <b>${sum.pivotLabel}</b> · 量价 <b style="color:${sum.vpScore>=1?'var(--up)':sum.vpScore<=-1?'var(--down)':'var(--text-mute)'}">${sum.vpLabel}</b> · 置信度 <b>${sum.confidence}%</b></p>
+            <div class="verdict-meta">${new Date().toLocaleString('zh-CN', {hour12:false})} · 取上一交易日 H/L/C 计算枢轴点</div>
+            <div class="verdict-tags" id="verdictTags"></div>
+          </div>
+        </div>
+        <!-- 量能状态条 -->
+        <div class="vol-strip" id="volStrip"></div>
+        <!-- 仓位条 -->
+        <div class="pos-strip">
+          <span class="k">建议仓位</span>
+          <div class="pos-bar">
+            <div class="marker" style="left:20%"></div>
+            <div class="marker" style="left:50%"></div>
+            <div class="marker" style="left:80%"></div>
+            <div class="fill" style="width:${sum.position}%"></div>
+          </div>
+          <div class="v" style="color:${sum.position>=50?'var(--up)':sum.position<25?'var(--down)':'var(--text)'}">${posLabel} ${sum.position}%</div>
+        </div>
+        <!-- 量价警告 -->
+        <div class="vp-alert" id="vpAlert"></div>
+        <!-- 风险提示 -->
+        <div class="risk-card">
+          <span class="label">⚠ 风险提示</span>
+          ${riskHtml}
+        </div>
+        <!-- 胜率回测 -->
+        <div class="winrate-row">
+          <div class="item">
+            <span>买入信号胜率(回测 ${bt.lookback}日 / 持有 ${bt.holdDays}日)</span>
+            <span class="v ${wrClass}">${bt.buySamples ? (bt.buyWinRate*100).toFixed(0)+'%' : '—'}</span>
+          </div>
+          <div class="item">
+            <span>买入后平均收益</span>
+            <span class="v ${bt.buyAvgRet>=0?'up':'down'}">${bt.buySamples ? (bt.buyAvgRet*100).toFixed(2)+'%' : '—'}</span>
+          </div>
+          <div class="item">
+            <span>样本数</span>
+            <span class="v">${bt.buySamples}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ROW 3: 指标信号汇总(分组) -->
+    <section>
+      <div class="sec-head">
+        <h2>指标信号汇总</h2>
+        <span class="tag">${sum.buyScore} 买 / ${sum.sellScore} 卖 (加权)</span>
+      </div>
+      <div class="signal-card">
+        <div class="indicators-section">
+          <div class="ig-group">
+            <div class="title">趋势指标 · MA<span class="count">权重高 · 跟踪方向</span></div>
+            <div id="trendRows"></div>
+          </div>
+          <div class="ig-group">
+            <div class="title">动量指标 · RSI/MACD/KDJ/ROC<span class="count">跟踪力度</span></div>
+            <div id="momentumRows"></div>
+          </div>
+          <div class="ig-group">
+            <div class="title">波动指标 · CCI/WR/ADX/BOLL<span class="count">跟踪极端与带宽</span></div>
+            <div id="volaRows"></div>
+          </div>
+          <div class="ig-group">
+            <div class="title">量能指标 · OBV/VR/VOL<span class="count">资金流向 · 动能</span></div>
+            <div id="volRows"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ROW 4: 枢轴点 + 基本面 -->
+    <section>
+      <div class="sec-head">
+        <h2>枢轴点 + 基本面</h2>
+        <span class="tag">PIVOT · FUNDAMENTAL</span>
+      </div>
+      <div class="grid-2" style="margin-top:0">
+        <div class="card">
+          <h3>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18"/></svg>
+            枢轴点 · 当前位置 ${sum.pivotLabel}
+          </h3>
+          <table class="pivot-table" id="pivotTable"></table>
+        </div>
+        <div class="card">
+          <h3>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/></svg>
+            基本面快照
+          </h3>
+          <div class="fundamental" id="fundamentals"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ROW 5: K 线 -->
+    <section>
+      <div class="sec-head">
+        <h2>K 线 + 枢轴点支撑阻力</h2>
+        <span class="tag" style="cursor:pointer;color:var(--accent)" id="btnFullscreen">⛶ 全屏查看</span>
+      </div>
+      <div class="card" id="mainChartCard" style="padding:16px;position:relative">
+        <button class="fs-btn" id="btnFs">⛶ 全屏</button>
+        <div class="chart" id="mainChart"></div>
+      </div>
+    </section>
+  `;
+
+  // 顶部 verdict tags
+  // === 区间极值微图(走势 + 标高/低/现价) ===
+  (function drawExtremeChart() {
+    const svg = document.getElementById('extremeChart');
+    if (!svg) return;
+    const closes = data.map(d => d.close);
+    const min = periodLow, max = periodHigh;
+    const range = max - min || 1;
+    // 折线路径(viewBox 0 0 100 100,preserveAspectRatio=none 拉成卡片宽)
+    const pts = closes.map((v, i) => {
+      const x = (i / (closes.length - 1)) * 100;
+      const y = 100 - ((v - min) / range) * 100;
+      return [x, y];
+    });
+    const path = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(2) + ',' + p[1].toFixed(2)).join(' ');
+    const areaPath = path + ' L100,100 L0,100 Z';
+    // 高/低/现价 在折线上的位置
+    const idxH = closes.indexOf(Math.max(...closes));
+    const idxL = closes.indexOf(Math.min(...closes));
+    const idxC = closes.length - 1;
+    const hY = 100 - ((closes[idxH] - min) / range) * 100;
+    const lY = 100 - ((closes[idxL] - min) / range) * 100;
+    const cY = 100 - ((closes[idxC] - min) / range) * 100;
+    const hX = (idxH / (closes.length - 1)) * 100;
+    const lX = (idxL / (closes.length - 1)) * 100;
+    const cX = 100;
+    svg.innerHTML = `
+      <defs>
+        <linearGradient id="exG" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#ff4565" stop-opacity="0.08"/>
+          <stop offset="100%" stop-color="#ff4565" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <path d="${areaPath}" fill="url(#exG)"/>
+      <path d="${path}" fill="none" stroke="#ff4565" stroke-width="0.8" stroke-linejoin="round" opacity="0.85"/>
+      <circle cx="${hX.toFixed(2)}" cy="${hY.toFixed(2)}" r="1.8" fill="#ff4565"/>
+      <circle cx="${lX.toFixed(2)}" cy="${lY.toFixed(2)}" r="1.8" fill="#00e88a"/>
+      <circle cx="${cX.toFixed(2)}" cy="${cY.toFixed(2)}" r="2" fill="#00d4ff" stroke="#0a0e1a" stroke-width="0.6"/>
+    `;
+    // 右侧 brackets:从高到现 + 从现到底,标 -16.1% 和 +12.3%
+    const drawdown = ((max - currentPrice) / max) * 100;
+    const rebounce = ((currentPrice - min) / min) * 100;
+    // 现价在折线上的位置(百分比)
+    const curPct = ((currentPrice - min) / range) * 100;  // 距底部的 % 高度
+    const docH = 100;  // viewBox 高度
+    const topY = 0;
+    const curY = docH - curPct;  // viewBox 中现价的 Y
+    const botY = docH;
+    document.getElementById('extremeBrackets').innerHTML = `
+      <svg viewBox="0 0 50 100" preserveAspectRatio="none">
+        <line x1="20" y1="${topY}" x2="20" y2="${curY.toFixed(2)}" stroke="#ff4565" stroke-width="0.6"/>
+        <line x1="20" y1="${curY.toFixed(2)}" x2="20" y2="${botY}" stroke="#00e88a" stroke-width="0.6"/>
+        <line x1="16" y1="${topY}" x2="24" y2="${topY}" stroke="#ff4565" stroke-width="0.8"/>
+        <line x1="16" y1="${curY.toFixed(2)}" x2="24" y2="${curY.toFixed(2)}" stroke="#94a3b8" stroke-width="0.8"/>
+        <line x1="16" y1="${botY}" x2="24" y2="${botY}" stroke="#00e88a" stroke-width="0.8"/>
+      </svg>
+    `;
+  })();
+
+  // === 回撤/反弹微图(走势 + 左侧 3 条虚线段 + 回撤/反弹幅度) ===
+  (function drawDrawChart() {
+    const svg = document.getElementById('drawChart');
+    if (!svg) return;
+    const closes = data.map(d => d.close);
+    const min = periodLow, max = periodHigh;
+    const range = max - min || 1;
+    // 走势折线
+    const pts = closes.map((v, i) => {
+      const x = (i / (closes.length - 1)) * 100;
+      const y = 100 - ((v - min) / range) * 100;
+      return [x, y];
+    });
+    const path = pts.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(2) + ',' + p[1].toFixed(2)).join(' ');
+    // 关键点位置
+    const idxH = closes.indexOf(Math.max(...closes));
+    const idxL = closes.indexOf(Math.min(...closes));
+    const hX = (idxH / (closes.length - 1)) * 100;
+    const lX = (idxL / (closes.length - 1)) * 100;
+    const cX = 100;
+    const hY = 0;  // 高点固定在 y=0
+    const lY = 100;  // 低点固定在 y=100
+    const cY = 100 - ((currentPrice - min) / range) * 100;
+    // 幅度
+    const drawdownVal = ((max - min) / max) * 100;     // 高→低(回撤)
+    const rebounceVal = ((currentPrice - min) / min) * 100;  // 低→现(反弹)
+    svg.innerHTML = `
+      <defs>
+        <linearGradient id="ddG" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#94a3b8" stop-opacity="0.1"/>
+          <stop offset="100%" stop-color="#94a3b8" stop-opacity="0.1"/>
+        </linearGradient>
+      </defs>
+      <!-- 左侧 3 条横向虚线段(高/低/现 价) - 全部黑色 -->
+      <line x1="0" y1="0" x2="18" y2="0" stroke="#1e293b" stroke-width="0.5" stroke-dasharray="2,2" opacity="0.8"/>
+      <line x1="0" y1="100" x2="18" y2="100" stroke="#1e293b" stroke-width="0.5" stroke-dasharray="2,2" opacity="0.8"/>
+      <line x1="0" y1="${cY.toFixed(2)}" x2="18" y2="${cY.toFixed(2)}" stroke="#1e293b" stroke-width="0.5" stroke-dasharray="2,2" opacity="0.8"/>
+      <!-- 走势 -->
+      <path d="${path}" fill="none" stroke="#64748b" stroke-width="0.8" stroke-linejoin="round" opacity="0.7"/>
+      <!-- 回撤线段:高 → 低 (黑色虚线) -->
+      <line x1="${hX.toFixed(2)}" y1="${hY}" x2="${lX.toFixed(2)}" y2="${lY}" stroke="#1e293b" stroke-width="1.2" stroke-dasharray="3,2" opacity="0.9"/>
+      <!-- 反弹线段:低 → 现 (黑色虚线) -->
+      <line x1="${lX.toFixed(2)}" y1="${lY}" x2="${cX.toFixed(2)}" y2="${cY.toFixed(2)}" stroke="#1e293b" stroke-width="1.2" stroke-dasharray="3,2" opacity="0.9"/>
+      <!-- 三点 - 全部黑色小圆点 -->
+      <circle cx="${hX.toFixed(2)}" cy="${hY}" r="1.5" fill="#1e293b"/>
+      <circle cx="${lX.toFixed(2)}" cy="${lY}" r="1.5" fill="#1e293b"/>
+      <circle cx="${cX.toFixed(2)}" cy="${cY.toFixed(2)}" r="1.5" fill="#1e293b"/>
+      <!-- 标签:回撤幅度 - 黑色文字 -->
+      <text x="${((hX+lX)/2).toFixed(2)}" y="${((hY+lY)/2 - 3).toFixed(2)}" text-anchor="middle" fill="#1e293b" font-size="5.5" font-family="JetBrains Mono" font-weight="600">回撤 -${drawdownVal.toFixed(1)}%</text>
+      <!-- 标签:反弹幅度 - 黑色文字 -->
+      <text x="${((lX+cX)/2).toFixed(2)}" y="${((lY+cY)/2 + 6).toFixed(2)}" text-anchor="middle" fill="#1e293b" font-size="5.5" font-family="JetBrains Mono" font-weight="600">反弹 +${rebounceVal.toFixed(1)}%</text>
+    `;
+  })();
+
+  document.getElementById('verdictTags').innerHTML = [
+    pillFor(sum.overall),
+    `<span class="pill ${sum.trendScore>=1?'buy':sum.trendScore<=-1?'sell':'neutral'}">${trendBadge}</span>`,
+    `<span class="pill ${sum.pivotSell>sum.pivotBuy?'sell':sum.pivotBuy>sum.pivotSell?'buy':'neutral'}">${sum.pivotLabel}</span>`,
+    `<span class="pill ${sum.vpScore>=1?'buy':sum.vpScore<=-1?'sell':'neutral'}">${sum.vpLabel}</span>`,
+  ].join('');
+
+  // 量能状态条
+  const volRatio = basic && basic.volRatio;
+  const turnover = basic && basic.turnover;
+  document.getElementById('volStrip').innerHTML = `
+    <div class="item"><span class="k">当日量比</span><span class="v ${volRatio > 1.5 ? 'up' : volRatio < 0.7 ? 'down' : ''}">${volRatio ? volRatio.toFixed(2) : '—'}</span></div>
+    <div class="item"><span class="k">换手率</span><span class="v">${turnover ? turnover.toFixed(2) + '%' : '—'}</span></div>
+    <div class="item"><span class="k">OBV 方向</span><span class="v ${sum.obvInfo.direction==='up'?'up':sum.obvInfo.direction==='down'?'down':''}">${sum.obvInfo.direction==='up'?'资金流入':sum.obvInfo.direction==='down'?'资金流出':'持平'}</span></div>
+    <div class="item"><span class="k">VOL 5/10</span><span class="v ${sum.volaRatio>1.3?'up':sum.volaRatio<0.7?'down':''}">${sum.volaRatio.toFixed(2)}</span></div>
+    <div class="item"><span class="k">量价信号</span><span class="v ${sum.vpScore>=1?'up':sum.vpScore<=-1?'down':''}">${sum.vpLabel}</span></div>
+  `;
+
+  // 量价警告
+  const vpAlert = document.getElementById('vpAlert');
+  if (sum.vpEvent === 'fangBreak') {
+    vpAlert.className = 'vp-alert';
+    vpAlert.innerHTML = `<span class="icon">⚡</span><div>今日<b>放量</b>跌破${sum.isFangLiang ? '关键均线' : ''} · 这是高权重看跌信号。资金面坚决做空,技术指标可能产生钝化。推荐操作:<b>减仓回避</b>,设严止损;若次日<b>缩量且价格收复 MA60</b>,再考虑回补。</div>`;
+  } else if (sum.vpDivergence) {
+    vpAlert.className = 'vp-alert warn';
+    vpAlert.innerHTML = `<span class="icon">⚠</span><div><b>量价背离</b>:价格小幅上涨但 OBV 向下发散,资金在趁反弹出货。即使整体趋势向上,也建议<b>收紧仓位</b>,勿追高。</div>`;
+  } else if (sum.vpEvent === 'fangBreakout') {
+    vpAlert.className = 'vp-alert good';
+    vpAlert.innerHTML = `<span class="icon">✓</span><div>今日<b>放量突破</b>关键均线 + OBV 上行,这是<strong>最高权重</strong>的看涨信号,可以考虑介入加仓。</div>`;
+  } else if (sum.vpEvent === 'upTrend') {
+    vpAlert.className = 'vp-alert good';
+    vpAlert.innerHTML = `<span class="icon">●</span><div>今日缩量上涨(可能主力锁仓),需<b>次日放量确认</b>方可持续看多。</div>`;
+  } else {
+    vpAlert.className = 'vp-alert warn';
+    vpAlert.innerHTML = `<span class="icon">·</span><div>量价状态: ${sum.vpLabel}。OBV ${sum.obvInfo.direction==='up'?'上行':'下行'},VOL 5/10 = ${sum.volaRatio.toFixed(2)}。</div>`;
+  }
+
+  // 趋势组(横向条:价格在均线上/下方的偏离度)
+  document.getElementById('trendRows').innerHTML = sum.trendGroup.map(m => {
+    const diff = m.value - currentPrice;
+    const maxDiff = currentPrice * 0.10;  // 10% 比例作为满刻度
+    const pct = Math.min(50, Math.abs(diff) / maxDiff * 50);
+    const cls = diff > 0 ? 'below' : 'above';  // diff>0 表示价格在均线下方,显示为 below(距下方多远)
+    // 实际上:price > MA → diff < 0 → above(价格在均线上方,距上方多远)
+    const isAbove = currentPrice > m.value;
+    return `<div class="ig-row">
+      <div class="name">${m.name}</div>
+      <div class="trend-bar">
+        <div class="center"></div>
+        <div class="fill ${isAbove?'above':'below'}" style="${isAbove?'left:50%;width:'+pct+'%':'right:50%;width:'+pct+'%'}"></div>
+      </div>
+      <div class="val">${m.value.toFixed(2)}</div>
+      <div>${pillFor(m.signal)}</div>
+    </div>`;
+  }).join('');
+
+  // 动量组(0-100 彩条 + 指针)
+  document.getElementById('momentumRows').innerHTML = sum.momentumGroup.map(t => {
+    const v = typeof t.value === 'number' ? t.value : 0;
+    const min = t.min, max = t.max;
+    let pct = max === min ? 50 : ((v - min) / (max - min)) * 100;
+    pct = Math.max(0, Math.min(100, pct));
+    const bipolar = t.name.includes('ROC');
+    return `<div class="ig-row">
+      <div class="name">${t.name}</div>
+      <div class="osc-bar ${bipolar?'bipolar-zero':''}">
+        ${bipolar ? '' : '<div class="gradient"></div>'}
+        <div class="pointer" style="left:${pct}%"></div>
+        ${bipolar ? (v>=0 ? `<div class="fill pos" style="left:50%;width:${pct-50}%"></div>` : `<div class="fill neg" style="left:${pct}%;width:${50-pct}%"></div>`) : ''}
+      </div>
+      <div class="val">${v.toFixed(2)}</div>
+      <div>${pillFor(t.signal)}</div>
+    </div>`;
+  }).join('');
+
+  // 波动组
+  document.getElementById('volaRows').innerHTML = sum.volaGroup.map(t => {
+    const v = typeof t.value === 'number' ? t.value : 0;
+    const min = t.min, max = t.max;
+    let pct = max === min ? 50 : ((v - min) / (max - min)) * 100;
+    pct = Math.max(0, Math.min(100, pct));
+    const bipolar = t.name.includes('CCI') || t.name.includes('WR') || t.name === 'BOLL';
+    return `<div class="ig-row">
+      <div class="name">${t.name}</div>
+      <div class="osc-bar ${bipolar?'bipolar-zero':''}">
+        ${bipolar ? '' : '<div class="gradient"></div>'}
+        <div class="pointer" style="left:${pct}%"></div>
+        ${bipolar ? (v>=0 ? `<div class="fill pos" style="left:50%;width:${Math.max(0,pct-50)}%"></div>` : `<div class="fill neg" style="left:${pct}%;width:${Math.max(0,50-pct)}%"></div>`) : ''}
+      </div>
+      <div class="val">${v.toFixed(2)}</div>
+      <div>${pillFor(t.signal)}</div>
+    </div>`;
+  }).join('');
+
+  // 量能组
+  document.getElementById('volRows').innerHTML = sum.volGroup.map(t => {
+    const v = typeof t.value === 'number' ? t.value : 0;
+    let pct = 50;
+    if (t.name === 'OBV') {
+      const range = Math.max(Math.abs(t.max - t.value), Math.abs(t.value - t.min), 1);
+      pct = ((v - t.min) / (t.max - t.min || 1)) * 100;
+      pct = Math.max(10, Math.min(90, pct));
+    } else {
+      const min = t.min, max = t.max;
+      pct = max === min ? 50 : ((v - min) / (max - min)) * 100;
+      pct = Math.max(0, Math.min(100, pct));
+    }
+    return `<div class="ig-row">
+      <div class="name">${t.name}</div>
+      <div class="osc-bar">
+        <div class="gradient"></div>
+        <div class="pointer" style="left:${pct}%"></div>
+      </div>
+      <div class="val">${t.name === 'VR 26' ? v.toFixed(0) : (t.name === 'OBV' ? (v/1e6).toFixed(1)+'M' : v.toFixed(2))}</div>
+      <div>${pillFor(t.signal)}</div>
+    </div>`;
+  }).join('');
+
+  // 枢轴点表
+  const rows = ['R3','R2','R1','轴心点','S1','S2','S3'];
+  const posArrow = (value, price) => {
+    if (Math.abs(value - price) / price < 0.002) return '<span style="color:var(--text-mute);font-size:11px;margin-left:6px">●</span>';
+    if (value > price) return '<span class="pos-arrow">▲</span>';
+    return '<span class="neg-arrow">▼</span>';
+  };
+  document.getElementById('pivotTable').innerHTML = `
+    <thead><tr>
+      <th>线</th>
+      <th class="num" style="text-align:right">经典</th>
+      <th class="num" style="text-align:right">斐波那契</th>
+    </tr></thead>
+    <tbody>
+      ${rows.map(n => {
+        const isPivot = n === '轴心点';
+        const cv = pivots.classic[n], fv = pivots.fibonacci[n];
+        return `<tr class="${isPivot?'zen':''}">
+          <td>${n}</td>
+          <td class="num">${cv.toFixed(2)}${posArrow(cv, currentPrice)}</td>
+          <td class="num">${fv.toFixed(2)}${posArrow(fv, currentPrice)}</td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  `;
+
+  // 基本面
+  if (basic && (basic.pe || basic.pb || basic.totalCap)) {
+    document.getElementById('fundamentals').innerHTML = `
+      <div class="f-cell"><div class="k">PE(动)</div><div class="v">${basic.pe ? basic.pe.toFixed(2) : '—'}</div><div class="d">市盈率</div></div>
+      <div class="f-cell"><div class="k">PB</div><div class="v">${(basic.pb && basic.pb > 0) ? basic.pb.toFixed(2) : '—'}</div><div class="d">市净率</div></div>
+      <div class="f-cell"><div class="k">总市值</div><div class="v">${basic.totalCap ? (basic.totalCap/10000).toFixed(2) + '万亿' : (basic.totalCap ? basic.totalCap.toFixed(0)+'亿' : '—')}</div><div class="d">${basic.totalCap >= 10000 ? '≥1万亿' : '市值'}</div></div>
+      <div class="f-cell"><div class="k">换手率</div><div class="v">${basic.turnover ? basic.turnover.toFixed(2)+'%' : '—'}</div><div class="d">当日</div></div>
+      <div class="f-cell"><div class="k">52周高</div><div class="v">${basic.high52w ? basic.high52w.toFixed(2) : '—'}</div><div class="d">最高价</div></div>
+      <div class="f-cell"><div class="k">52周低</div><div class="v">${basic.low52w ? basic.low52w.toFixed(2) : '—'}</div><div class="d">最低价</div></div>
+      <div class="f-cell"><div class="k">涨停</div><div class="v" style="color:var(--up)">${basic.upperLimit ? basic.upperLimit.toFixed(2) : '—'}</div><div class="d">+10%</div></div>
+      <div class="f-cell"><div class="k">跌停</div><div class="v" style="color:var(--down)">${basic.lowerLimit ? basic.lowerLimit.toFixed(2) : '—'}</div><div class="d">-10%</div></div>
+    `;
+  } else {
+    document.getElementById('fundamentals').innerHTML = `<div style="grid-column:1/-1;color:var(--text-mute);font-size:12px;text-align:center;padding:20px 0">该标的无基本面数据(指数/ETF/基金) · 仅技术面参考</div>`;
+  }
+}
+
+function findName(code) {
+  const list = loadStocks();
+  const found = list.find(s => s.code === code);
+  return found ? found.name : code.toUpperCase();
+}
+
+// 修改名称保存到 LocalStorage
+function updateName(code, newName) {
+  const list = loadStocks();
+  const found = list.find(s => s.code === code);
+  if (found) {
+    found.name = newName;
+    saveStocks(list);
+    return true;
+  }
+  return false;
+}
+
+function getTypeByCode(code) {
+  const list = loadStocks();
+  const found = list.find(s => s.code === code);
+  return found ? found.type : 'stock';
+}
+
+const sigMap = {
+  '强力买入': {cls:'strong-buy', label:'强力买入'},
+  '买入': {cls:'buy', label:'买入'},
+  '强力卖出': {cls:'strong-sell', label:'强力卖出'},
+  '卖出': {cls:'sell', label:'卖出'},
+  '超买': {cls:'strong-sell', label:'超买'},
+  '超卖': {cls:'strong-buy', label:'超卖'},
+  '中性': {cls:'neutral', label:'中性'},
+  '无趋势': {cls:'neutral', label:'无趋势'},
+  '中等波动': {cls:'neutral', label:'中等波动'},
+};
+function pillFor(s){
+  const m = sigMap[s] || {cls:'neutral',label:s};
+  return `<span class="pill ${m.cls}">${m.label}</span>`;
+}
+
+function drawChart(data, sum, pivots) {
+  const dates = data.map(d => d.date);
+  const ohlc = data.map(d => [d.open, d.close, d.low, d.high]);
+  const volumes = data.map(d => d.volume);
+  const closes = data.map(d => d.close);
+
+  // 计算枢轴点位水平线 yAxis 位置
+  const ymin = Math.min(...data.slice(-60).map(d => d.low));
+  const ymax = Math.max(...data.slice(-60).map(d => d.high));
+
+  // 区间最高价/最低价/现价（回撤标注虚线）
+  const periodHigh = Math.max(...data.map(d => d.high));
+  const periodLow = Math.min(...data.map(d => d.low));
+  const currentClose = data[data.length - 1].close;
+  const retraceLines = [
+    {
+      yAxis: periodHigh,
+      lineStyle: { color: '#ff4565', width: 1.2, type: 'dashed' },
+      label: { formatter: '最高 ' + periodHigh.toFixed(2), position: 'insideStartTop', color: '#ff4565', fontSize: 10, fontWeight: 700, fontFamily: 'JetBrains Mono', backgroundColor: 'rgba(10,14,26,0.85)', padding: [2, 6, 2, 6], borderRadius: 4 }
+    },
+    {
+      yAxis: periodLow,
+      lineStyle: { color: '#00e88a', width: 1.2, type: 'dashed' },
+      label: { formatter: '最低 ' + periodLow.toFixed(2), position: 'insideStartTop', color: '#00e88a', fontSize: 10, fontWeight: 700, fontFamily: 'JetBrains Mono', backgroundColor: 'rgba(10,14,26,0.85)', padding: [2, 6, 2, 6], borderRadius: 4 }
+    },
+    {
+      yAxis: currentClose,
+      lineStyle: { color: '#00d4ff', width: 1.2, type: 'dashed' },
+      label: { formatter: '现价 ' + currentClose.toFixed(2), position: 'insideStartTop', color: '#00d4ff', fontSize: 10, fontWeight: 700, fontFamily: 'JetBrains Mono', backgroundColor: 'rgba(10,14,26,0.85)', padding: [2, 6, 2, 6], borderRadius: 4 }
+    }
+  ];
+
+  const markLines = ['R3','R2','R1','轴心点','S1','S2','S3'].map(name => {
+    const colors = { R3:'#ff4565', R2:'rgba(255,69,101,0.7)', R1:'rgba(255,69,101,0.5)', '轴心点':'#94a3b8', S1:'rgba(0,232,138,0.5)', S2:'rgba(0,232,138,0.7)', S3:'#00e88a' };
+    return {
+      yAxis: pivots.classic[name],
+      lineStyle: { color: colors[name], width: name==='轴心点'?1.5:1, type: 'dashed' },
+      label: { formatter: name, position: 'insideEndTop', color: colors[name], fontSize: 10, fontFamily: 'JetBrains Mono' },
+    };
+  });
+
+  // 异动放量 K 线 markPoint
+  const vol5arr = sum.vol5;
+  const markPointData = sum.anomalyIdx.slice(-15).map(a => {
+    const d = data[a.i];
+    const isFangXia = a.type === 'high' && d.close < d.open;
+    return {
+      name: isFangXia ? '放量破位' : '放量',
+      coord: [a.i, d.high],
+      symbol: isFangXia ? 'pin' : 'circle',
+      symbolSize: isFangXia ? 18 : 10,
+      itemStyle: { color: isFangXia ? '#ff4565' : '#ffb547' },
+      label: {
+        show: isFangXia,
+        position: 'top',
+        formatter: '放量破位',
+        color: '#ff4565',
+        fontSize: 10,
+        fontWeight: 600,
+        fontFamily: 'Outfit',
+      },
+    };
+  });
+
+  const baseFont = {fontFamily:'Outfit, sans-serif', color:'#9aa5b8', fontSize: 11};
+  const gridLine = {lineStyle:{color:'rgba(255,255,255,0.04)', type:'dashed'}};
+  const ma = n => {
+    const out = [];
+    let s = 0;
+    for (let i = 0; i < closes.length; i++) {
+      s += closes[i];
+      if (i >= n) s -= closes[i - n];
+      out.push(i >= n - 1 ? +(s / n).toFixed(2) : '-');
+    }
+    return out;
+  };
+
+  const main = echarts.init(document.getElementById('mainChart'));
+  window.__mainChart = main;
+  main.setOption({
+    animation:false,
+    backgroundColor:'transparent',
+    legend:{
+      data:['K线','MA5','MA10','MA20','MA60','枢轴点'],
+      top: 0, right: 0, textStyle:{...baseFont, fontSize: 11}, itemWidth: 14, itemHeight: 8
+    },
+    tooltip:{
+      trigger:'axis', axisPointer:{type:'cross', lineStyle:{color:'#475569'}},
+      backgroundColor:'rgba(20,23,30,0.95)', borderWidth:0,
+      textStyle:{color:'#fff', fontSize:12, fontFamily:'Outfit'},
+      formatter: function(params){
+        const i = params[0].dataIndex;
+        const d = data[i];
+        const color = d.close >= d.open ? '#ff4565' : '#00e88a';
+        return `<div style="font-family:JetBrains Mono,monospace;font-size:11px;color:#94a3b8;margin-bottom:6px">${d.date}</div>
+          <div style="display:grid;grid-template-columns:auto auto;gap:4px 14px;font-size:12px">
+            <span style="color:#94a3b8">开盘</span><span>${d.open.toFixed(2)}</span>
+            <span style="color:#94a3b8">最高</span><span>${d.high.toFixed(2)}</span>
+            <span style="color:#94a3b8">最低</span><span>${d.low.toFixed(2)}</span>
+            <span style="color:#94a3b8">收盘</span><span style="color:${color};font-weight:600">${d.close.toFixed(2)}</span>
+            <span style="color:#94a3b8">成交量</span><span>${(d.volume/1e4).toFixed(1)} 万手</span>
+          </div>`;
+      }
+    },
+    axisPointer:{link:[{xAxisIndex:'all'}], label:{backgroundColor:'#14171e'}},
+    grid:[
+      {left:60, right:30, top:40, height:'60%'},
+      {left:60, right:30, top:'76%', height:'14%'}
+    ],
+    xAxis:[
+      {type:'category', data:dates, scale:true, boundaryGap:false,
+        axisLine:{lineStyle:{color:'rgba(255,255,255,0.08)'}}, axisLabel:{...baseFont, color:'#9aa5b8'},
+        splitLine:{show:false}, axisPointer:{z:100}},
+      {type:'category', gridIndex:1, data:dates, scale:true, boundaryGap:false,
+        axisLine:{lineStyle:{color:'rgba(255,255,255,0.08)'}}, axisLabel:{show:false},
+        axisTick:{show:false}, splitLine:{show:false}}
+    ],
+    yAxis:[
+      {scale:true, position:'left',
+        axisLine:{show:false}, axisLabel:{...baseFont, color:'#9aa5b8', formatter:'{value}'},
+        splitLine:gridLine, splitNumber:5,
+        min: ymin * 0.998, max: ymax * 1.002},
+      {scale:true, gridIndex:1, position:'left',
+        axisLine:{show:false}, axisLabel:{...baseFont, color:'#9aa5b8', formatter:'{value}'},
+        splitLine:gridLine, splitNumber:3}
+    ],
+    dataZoom:[
+      {type:'inside', xAxisIndex:[0,1], start:50, end:100},
+      {type:'slider', xAxisIndex:[0,1], bottom:8, height:18, start:50, end:100,
+        borderColor:'rgba(255,255,255,0.08)', fillerColor:'rgba(255,69,101,0.1)',
+        handleStyle:{color:'#fff', borderColor:'#ff4565'},
+        textStyle:{...baseFont, fontSize:10, color:'#9aa5b8'}}
+    ],
+    series:[
+      {name:'K线', type:'candlestick', data: ohlc,
+        itemStyle:{ color:'#ff4565', color0:'#00e88a', borderColor:'#ff4565', borderColor0:'#00e88a' },
+        markLine: { silent:true, symbol:'none', data: [...markLines, ...retraceLines] },
+        markPoint: { data: markPointData }},
+      {name:'MA5',  type:'line', data: ma(5),  smooth:true, showSymbol:false, lineStyle:{width:1, color:'#ffb547'}, z:3},
+      {name:'MA10', type:'line', data: ma(10), smooth:true, showSymbol:false, lineStyle:{width:1, color:'#00d4ff'}, z:3},
+      {name:'MA20', type:'line', data: ma(20), smooth:true, showSymbol:false, lineStyle:{width:1, color:'#a78bfa'}, z:3},
+      {name:'MA60', type:'line', data: ma(60), smooth:true, showSymbol:false, lineStyle:{width:1.2, color:'#f472b6'}, z:3},
+      {name:'成交量', type:'bar', xAxisIndex:1, yAxisIndex:1, data: volumes,
+        itemStyle:{ color: p => {
+          const d = data[p.dataIndex];
+          // 放量(> 5日均量 *1.5):更亮
+          const vol5 = data.slice(Math.max(0, p.dataIndex-5), p.dataIndex).reduce((a,b)=>a+b.volume,0) / 5;
+          const isHigh = d.volume > vol5 * 1.5;
+          const isLow = d.volume < vol5 * 0.5;
+          if (d.close >= d.open) return isHigh ? 'rgba(255,69,101,0.85)' : isLow ? 'rgba(255,69,101,0.25)' : 'rgba(255,69,101,0.5)';
+          return isHigh ? 'rgba(0,232,138,0.85)' : isLow ? 'rgba(0,232,138,0.25)' : 'rgba(0,232,138,0.5)';
+        }}}
+    ]
+  });
+  window.addEventListener('resize', () => main.resize());
+}
+</script>
+
+</body>
+</html>

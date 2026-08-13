@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>K-LINE · 自选股终端</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#0a0e1a;
+    --bg-2:#0f1424;
+    --surface:#141a2e;
+    --surface-2:#1a2138;
+    --line:rgba(255,255,255,0.06);
+    --line-2:rgba(255,255,255,0.12);
+    --text:#e8edf5;
+    --text-soft:#9aa5b8;
+    --text-mute:#5a6580;
+    --up:#ff4565;
+    --up-soft:rgba(255,69,101,0.12);
+    --down:#00e88a;
+    --down-soft:rgba(0,232,138,0.12);
+    --flat:#7c8aa5;
+    --accent:#00d4ff;
+    --accent-glow:rgba(0,212,255,0.35);
+    --warn:#ffb547;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--text);font-family:'Outfit','PingFang SC','Microsoft YaHei',sans-serif;font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  body::before{content:'';position:fixed;inset:0;background-image:
+    linear-gradient(rgba(255,255,255,0.018) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,0.018) 1px,transparent 1px);
+    background-size:48px 48px;pointer-events:none;z-index:0}
+  body::after{content:'';position:fixed;top:-20%;right:-10%;width:60%;height:60%;background:radial-gradient(ellipse at center, rgba(0,212,255,0.08) 0%, transparent 60%);pointer-events:none;z-index:0}
+  .wrap{position:relative;z-index:1;max-width:1280px;margin:0 auto;padding:32px 32px 60px}
+
+  /* ============ Top bar ============ */
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding-bottom:24px;border-bottom:1px solid var(--line);margin-bottom:32px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .brand .logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#00d4ff,#0066ff);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:14px;box-shadow:0 0 24px var(--accent-glow);position:relative}
+  .brand .logo::after{content:'';position:absolute;inset:0;border-radius:10px;background:linear-gradient(135deg,transparent 50%,rgba(255,255,255,0.2));pointer-events:none}
+  .brand .name{font-family:'Outfit',sans-serif;font-size:18px;font-weight:600;letter-spacing:0.04em}
+  .brand .name em{font-style:normal;color:var(--accent)}
+  .status-bar{display:flex;align-items:center;gap:24px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text-mute)}
+  .status-bar .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent);animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+  .status-bar .dot.live{background:var(--accent)}
+  .status-bar .time{color:var(--text-soft);letter-spacing:0.05em}
+
+  /* ============ Hero stats ============ */
+  .hero{margin-bottom:32px}
+  .hero-eyebrow{font-size:11px;letter-spacing:0.2em;color:var(--accent);text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px;font-weight:500}
+  .hero-eyebrow .dot{width:5px;height:5px;border-radius:50%;background:var(--accent);box-shadow:0 0 10px var(--accent)}
+  h1{font-family:'Outfit',sans-serif;font-size:42px;line-height:1.1;letter-spacing:-0.02em;font-weight:600;margin-bottom:8px;color:var(--text)}
+  h1 em{font-style:normal;font-weight:700;background:linear-gradient(90deg,var(--accent),#ff4565);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+  .sub{color:var(--text-soft);font-size:14px;max-width:560px}
+  .sub code{font-family:'JetBrains Mono',monospace;background:rgba(0,212,255,0.1);color:var(--accent);padding:1px 6px;border-radius:4px;font-size:12px;border:1px solid rgba(0,212,255,0.2)}
+
+  /* 状态条:总览 */
+  .strip{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;margin-bottom:36px;overflow:hidden}
+  .strip .cell{background:var(--bg-2);padding:18px 22px;transition:background .2s}
+  .strip .cell:hover{background:var(--surface)}
+  .strip .k{font-size:10px;letter-spacing:0.14em;color:var(--text-mute);text-transform:uppercase;margin-bottom:6px;font-weight:500}
+  .strip .v{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:600;letter-spacing:-0.01em;line-height:1.1}
+  .strip .v.up{color:var(--up)}
+  .strip .v.down{color:var(--down)}
+  .strip .v.accent{color:var(--accent)}
+
+  /* ============ Add form ============ */
+  .add-row{display:flex;gap:10px;margin-bottom:36px;align-items:center}
+  .add-input{flex:1;padding:14px 18px;background:var(--surface);border:1px solid var(--line-2);border-radius:12px;font-size:14px;color:var(--text);font-family:'JetBrains Mono',monospace;outline:none;transition:all .2s}
+  .add-input::placeholder{color:var(--text-mute);font-family:'Outfit',sans-serif}
+  .add-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow);background:var(--surface-2)}
+  .add-input.warn{border-color:var(--warn);box-shadow:0 0 0 3px rgba(255,181,71,0.2)}
+  .add-input.success{border-color:var(--up);box-shadow:0 0 0 3px rgba(0,232,138,0.2)}
+  .add-btn{padding:14px 28px;background:linear-gradient(135deg,var(--accent),#0066ff);color:#fff;border:0;border-radius:12px;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:0.04em;transition:all .2s;font-family:inherit;position:relative;overflow:hidden}
+  .add-btn::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent);transition:left .5s}
+  .add-btn:hover::before{left:100%}
+  .add-btn:hover{transform:translateY(-1px);box-shadow:0 8px 20px var(--accent-glow)}
+
+  /* ============ Section header ============ */
+  .sec-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+  .sec-head h2{font-family:'Outfit',sans-serif;font-size:16px;font-weight:600;letter-spacing:0.02em;display:flex;align-items:center;gap:10px}
+  .sec-head h2::before{content:'';width:3px;height:16px;background:linear-gradient(180deg,var(--accent),#0066ff);border-radius:2px}
+  .sec-head .tag{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-mute);letter-spacing:0.1em;text-transform:uppercase}
+
+  /* ============ Stock grid ============ */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:14px}
+
+  /* Stock card */
+  .sc{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;cursor:pointer;position:relative;overflow:hidden;transition:all .25s cubic-bezier(.4,0,.2,1);opacity:0;transform:translateY(8px);animation:slideIn .5s forwards}
+  @keyframes slideIn{to{opacity:1;transform:translateY(0)}}
+  .sc:hover{transform:translateY(-3px);border-color:var(--line-2);background:var(--surface-2);box-shadow:0 12px 32px -8px rgba(0,0,0,0.5),0 0 0 1px var(--accent-glow)}
+  .sc::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--flat);transition:all .3s}
+  .sc.up::before{background:linear-gradient(90deg,transparent,var(--up),transparent)}
+  .sc.down::before{background:linear-gradient(90deg,transparent,var(--down),transparent)}
+  .sc.flat::before{background:linear-gradient(90deg,transparent,var(--flat),transparent)}
+
+  .sc-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+  .sc-name{font-size:14px;font-weight:600;line-height:1.2;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .sc-code{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-mute);letter-spacing:0.04em;margin-top:3px}
+  .sc-del{background:transparent;border:0;color:var(--text-mute);cursor:pointer;padding:4px;border-radius:6px;transition:all .2s;display:flex}
+  .sc-del:hover{color:var(--down);background:var(--down-soft)}
+  .sc-del svg{width:14px;height:14px}
+
+  .type-pill{display:inline-block;padding:2px 7px;border-radius:4px;font-size:9px;font-weight:700;letter-spacing:0.06em;vertical-align:middle}
+  .type-pill.type-stock{background:rgba(154,165,184,0.15);color:var(--text-soft)}
+  .type-pill.type-etf{background:rgba(0,212,255,0.15);color:var(--accent)}
+  .type-pill.type-lof{background:rgba(255,181,71,0.15);color:var(--warn)}
+  .type-pill.type-index{background:rgba(168,85,247,0.18);color:#c084fc}
+
+  .sc-price-row{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px}
+  .sc-price{font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:600;letter-spacing:-0.02em;line-height:1;transition:color .3s}
+  .sc-price.up{color:var(--up)}
+  .sc-price.down{color:var(--down)}
+  .sc-price.flat{color:var(--text)}
+  .sc-change{text-align:right;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.4}
+  .sc-change .pct{font-size:14px;font-weight:600}
+  .sc-change.up{color:var(--up)}
+  .sc-change.down{color:var(--down)}
+  .sc-change.flat{color:var(--text-mute)}
+  .sc-flash{animation:flashUp .6s ease-out}
+  .sc-flash-down{animation:flashDown .6s ease-out}
+  @keyframes flashUp{0%{background:var(--up-soft)}100%{background:transparent}}
+  @keyframes flashDown{0%{background:var(--down-soft)}100%{background:transparent}}
+
+  .sc-spark{height:36px;width:100%;margin-bottom:6px}
+  .sc-foot{display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--text-mute);letter-spacing:0.04em;padding-top:8px;border-top:1px solid var(--line)}
+
+  /* Empty state */
+  .empty{grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--text-mute);font-size:13px}
+  .empty svg{margin:0 auto 16px;display:block;color:var(--text-mute);opacity:0.3;width:40px;height:40px}
+
+  /* Footer */
+  .foot{margin-top:48px;padding-top:20px;border-top:1px solid var(--line);color:var(--text-mute);font-size:11px;display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;letter-spacing:0.04em}
+
+  /* Responsive */
+  @media (max-width:900px){
+    .wrap{padding:24px 18px 50px}
+    h1{font-size:30px}
+    .strip{grid-template-columns:repeat(2,1fr)}
+    .strip .cell:nth-child(2n){border-right:0}
+    .strip .cell:nth-child(-n+2){border-bottom:1px solid var(--line)}
+    .status-bar{display:none}
+    .add-row{flex-direction:column;align-items:stretch}
+    .add-btn{padding:12px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo">K</div>
+      <div class="name">K-LINE <em>·  TERMINAL</em></div>
+    </div>
+    <div class="status-bar">
+      <span class="dot live"></span>
+      <span>LIVE</span>
+      <span class="time" id="clock">—</span>
+    </div>
+  </div>
+
+  <!-- Hero -->
+  <header class="hero">
+    <div class="hero-eyebrow"><span class="dot"></span>WATCHLIST · 自选股</div>
+    <h1>实时市场 <em>终端视图</em></h1>
+    <p class="sub">沪深京 A 股 / 指数 / ETF / LOF 基金 · 直连腾讯 K 线接口 · 技术分析(MA / RSI / MACD / KDJ / BOLL)+ 枢轴点</p>
+  </header>
+
+  <!-- Stats strip -->
+  <div class="strip" id="strip">
+    <div class="cell"><div class="k">自选股</div><div class="v accent" id="statCount">0</div></div>
+    <div class="cell"><div class="k">上涨</div><div class="v up" id="statUp">0</div></div>
+    <div class="cell"><div class="k">下跌</div><div class="v down" id="statDown">0</div></div>
+    <div class="cell"><div class="k">平盘</div><div class="v" id="statFlat">0</div></div>
+    <div class="cell"><div class="k">总涨跌幅</div><div class="v" id="statTotal">0.00%</div></div>
+  </div>
+
+  <!-- Add -->
+  <form class="add-row" id="addForm">
+    <input class="add-input" id="codeInput" placeholder="代码 6 位(如 600519 或 sh600519)" autocomplete="off">
+    <button type="submit" class="add-btn">添加</button>
+  </form>
+
+  <!-- Watchlist -->
+  <div class="sec-head">
+    <h2>自选股</h2>
+    <span class="tag" id="watchCount">—</span>
+  </div>
+  <div class="grid" id="watchGrid"></div>
+
+  <div class="foot">
+    <span>SOURCE · web.ifzq.gtimg.cn</span>
+    <span id="footTime">—</span>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+// 数字滚动动画(缓动)
+function animateNumber(el, from, to, duration, suffix = '', decimals = 0) {
+  const start = performance.now();
+  function tick(now) {
+    const t = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - t, 3);
+    const v = from + (to - from) * eased;
+    el.textContent = v.toFixed(decimals) + suffix;
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+// 时钟
+function tickClock() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  document.getElementById('clock').textContent =
+    `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+setInterval(tickClock, 1000);
+tickClock();
+
+document.getElementById('footTime').textContent = 'GEN · ' + new Date().toISOString().slice(0,10);
+
+// Sparkline(30 日走势)
+function sparklineSVG(closes, width = 280, height = 36, up = true) {
+  if (!closes.length) return '';
+  const min = Math.min(...closes), max = Math.max(...closes);
+  const range = max - min || 1;
+  const stepX = width / (closes.length - 1 || 1);
+  const points = closes.map((v, i) => {
+    const x = i * stepX;
+    const y = height - ((v - min) / range) * (height - 4) - 2;
+    return [x, y];
+  });
+  const linePath = points.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+  const areaPath = linePath + ` L${points.at(-1)[0].toFixed(1)},${height} L0,${height} Z`;
+  const color = up ? '#ff4565' : '#00e88a';
+  return `<svg class="sc-spark" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none">
+    <path d="${areaPath}" fill="${color}" fill-opacity="0.08"/>
+    <path d="${linePath}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+    <circle cx="${points.at(-1)[0].toFixed(1)}" cy="${points.at(-1)[1].toFixed(1)}" r="2.5" fill="${color}"/>
+  </svg>`;
+}
+
+// 渲染主逻辑
+const quoteCache = new Map();
+
+function renderWatchlist() {
+  const list = loadStocks();
+  document.getElementById('watchCount').textContent = `${list.length} ASSETS`;
+  document.getElementById('statCount').textContent = list.length;
+  const grid = document.getElementById('watchGrid');
+  if (!list.length) {
+    grid.innerHTML = `<div class="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3h18v18H3z"/><path d="M3 9h18M9 3v18"/></svg>
+      NO ASSETS ·  上方输入代码添加
+    </div>`;
+    updateStrip([]);
+    return;
+  }
+  grid.innerHTML = list.map((s, i) => `
+    <div class="sc flat" data-code="${s.code}" style="animation-delay:${i*60}ms" onclick="goStock('${s.code}')">
+      <div class="sc-head">
+        <div>
+          <div class="sc-name">${s.name}${typeLabel(s.type)}</div>
+          <div class="sc-code">${s.code.toUpperCase()}</div>
+        </div>
+        <button class="sc-del" onclick="event.stopPropagation();onDel('${s.code}')" title="删除">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+        </button>
+      </div>
+      <div class="sc-price-row">
+        <div class="sc-price flat" id="price-${s.code}">—</div>
+        <div class="sc-change flat" id="change-${s.code}">
+          <div>—</div><div class="pct">—</div>
+        </div>
+      </div>
+      <div id="spark-${s.code}"></div>
+      <div class="sc-foot">
+        <span id="date-${s.code}">—</span>
+        <span id="vol-${s.code}">—</span>
+      </div>
+    </div>
+  `).join('');
+  list.forEach(s => fetchQuoteCard(s));
+}
+
+async function fetchQuoteCard(stock) {
+  const priceEl = document.getElementById('price-' + stock.code);
+  const changeEl = document.getElementById('change-' + stock.code);
+  const sparkEl = document.getElementById('spark-' + stock.code);
+  const dateEl = document.getElementById('date-' + stock.code);
+  const volEl = document.getElementById('vol-' + stock.code);
+  const cardEl = document.querySelector(`[data-code="${stock.code}"]`);
+  if (!priceEl) return;
+  try {
+    const k = await fetchKLine(stock.code, 60);
+    const last = k[k.length - 1];
+    const prev = k[k.length - 2] || last;
+    const change = last.close - prev.close;
+    const pct = (change / prev.close) * 100;
+    const dir = change > 0 ? 'up' : change < 0 ? 'down' : 'flat';
+
+    animateNumber(priceEl, 0, last.close, 800, '', 2);
+    priceEl.classList.remove('up', 'down', 'flat');
+    priceEl.classList.add(dir);
+    changeEl.classList.remove('up', 'down', 'flat');
+    changeEl.classList.add(dir);
+    changeEl.innerHTML = `<div>${change>=0?'+':''}${change.toFixed(2)}</div><div class="pct">${change>=0?'+':''}${pct.toFixed(2)}%</div>`;
+    cardEl.classList.remove('up', 'down', 'flat');
+    cardEl.classList.add(dir);
+    sparkEl.innerHTML = sparklineSVG(k.map(d => d.close), 280, 36, dir === 'up');
+    dateEl.textContent = last.date;
+    volEl.textContent = `VOL ${(last.volume/1e4).toFixed(0)}万`;
+
+    quoteCache.set(stock.code, { last, prev, dir, change, pct });
+    updateStripFromCache();
+  } catch (e) {
+    priceEl.textContent = 'ERR';
+    changeEl.innerHTML = `<div style="color:var(--down);font-size:11px">抓取失败</div>`;
+    cardEl.classList.add('flat');
+  }
+}
+
+function updateStripFromCache() {
+  const arr = [];
+  loadStocks().forEach(s => {
+    const q = quoteCache.get(s.code);
+    if (q) arr.push(q);
+  });
+  updateStrip(arr);
+}
+
+function updateStrip(quotes) {
+  const up = quotes.filter(q => q.dir === 'up').length;
+  const down = quotes.filter(q => q.dir === 'down').length;
+  const flat = quotes.length - up - down;
+  const total = quotes.reduce((a, q) => a + q.pct, 0);
+  animateNumber(document.getElementById('statUp'), +document.getElementById('statUp').textContent || 0, up, 300, '', 0);
+  animateNumber(document.getElementById('statDown'), +document.getElementById('statDown').textContent || 0, down, 300, '', 0);
+  animateNumber(document.getElementById('statFlat'), +document.getElementById('statFlat').textContent || 0, flat, 300, '', 0);
+  const totEl = document.getElementById('statTotal');
+  totEl.textContent = (total>=0?'+':'') + total.toFixed(2) + '%';
+  totEl.classList.remove('up', 'down');
+  totEl.classList.add(total >= 0 ? 'up' : 'down');
+}
+
+function onAdd(e) {
+  e.preventDefault();
+  const codeEl = document.getElementById('codeInput');
+  const code = codeEl.value.trim();
+  if (!code) return;
+  const r = addStock(code);
+  if (!r.added) {
+    codeEl.classList.add('warn');
+    codeEl.value = '';
+    setTimeout(() => codeEl.classList.remove('warn'), 1500);
+    return;
+  }
+  codeEl.value = '';
+  codeEl.classList.add('success');
+  setTimeout(() => codeEl.classList.remove('success'), 800);
+  renderWatchlist();
+}
+
+function onDel(code) {
+  removeStock(code);
+  renderWatchlist();
+}
+
+renderWatchlist();
+document.getElementById('addForm').addEventListener('submit', onAdd);
+</script>
+
+</body>
+</html>
